@@ -1,0 +1,16 @@
+.DS_Store
+.idea
+.vscode
+.classpath
+.project
+.settings
+target
+*.jar
+*.iml
+# built application files
+*.apk
+*.ap_
+
+# files for the dex VM
+*.dex
+.ipynb_checkpoints
