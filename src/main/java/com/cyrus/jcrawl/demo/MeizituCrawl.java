@@ -1,9 +1,11 @@
 package com.cyrus.jcrawl.demo;
 
+import com.cyrus.jcrawl.dbp.HikariCPDataSource;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -15,6 +17,8 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -48,6 +52,14 @@ class MeizituCrawl extends Thread {
         return pages;
     }
 
+    synchronized private static void createpath(String path) throws IOException {
+        Path savePathObj = Paths.get(path);
+        // 第一次创建完成后，后续的进程将判断为已创建
+        if (!Files.exists(savePathObj)) {
+            Files.createDirectory(savePathObj);
+        }
+    }
+
     void downloadPic() {
         URL urlObj = null;
         ReadableByteChannel rbcObj = null;
@@ -56,18 +68,18 @@ class MeizituCrawl extends Thread {
         String[] ps = this.url.split("/");
         String fileName = String.join("_", Arrays.copyOfRange(ps, 3, ps.length));
 
-        Path savePathObj = Paths.get(this.savePath);
-        synchronized(this) {
-            // 第一次创建完成后，后续的进程将判断为已创建
-            if (!Files.exists(savePathObj)) {
-                try {
+        synchronized (MeizituCrawl.class) {
+            try {
+                Path savePathObj = Paths.get(this.savePath);
+                // 第一次创建完成后，后续的进程将判断为已创建
+                if (!Files.exists(savePathObj)) {
                     Files.createDirectory(savePathObj);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    return;
                 }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
+
 
         try {
             urlObj = new URL(this.url);
@@ -77,7 +89,7 @@ class MeizituCrawl extends Thread {
 
             fos.getChannel().transferFrom(rbcObj, 0, Long.MAX_VALUE);
             logger.info("File Successfully Downloaded From The Url: " + this.url);
-            synchronized(this) {
+            synchronized (this) {
                 MeizituCrawl.count++;
             }
         } catch (IOException e) {
@@ -94,7 +106,7 @@ class MeizituCrawl extends Thread {
                 e.printStackTrace();
             }
         }
-        synchronized(this) {
+        synchronized (this) {
             logger.info("total pics download is " + MeizituCrawl.count);
         }
     }
@@ -103,6 +115,13 @@ class MeizituCrawl extends Thread {
     @Override
     public void run() {
         this.downloadPic();
+
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(HikariCPDataSource.getDatasource());
+        logger.info(jdbcTemplate);
+        // Connection conn = HikariCPDataSource.getConnection();
+        List rest = jdbcTemplate.queryForList("select * from pg_atoms");
+        logger.info(rest.size());
+
     }
 
     public static void main(String[] args) {
